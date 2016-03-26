@@ -313,7 +313,7 @@ namespace Capture1 {
 			if(frame != NULL)
 			{
 				imageQueue.push(*frame);
-				if (now_frame_no % fame_continue == 0)//发送帧，改变框子参数
+				if (now_frame_no % fame_continue == 0)//发送帧，改变框子参数.
 				{
 					timer2->Start();
 				}
