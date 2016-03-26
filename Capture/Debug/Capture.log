@@ -1,0 +1,26 @@
+﻿  stdafx.cpp
+  AssemblyInfo.cpp
+AssemblyInfo.cpp(40): warning C4947: “System::Security::Permissions::SecurityAction::RequestMinimum”: 标记为已过时
+  AssemblyInfo.cpp(40): note: 消息: “Assembly level declarative security is obsolete and is no longer enforced by the CLR by default. See http://go.microsoft.com/fwlink/?LinkID=155570 for more information.”
+  Capture.cpp
+d:\opencv\build\include\opencv2\flann\logger.h(66): warning C4996: 'fopen': This function or variable may be unsafe. Consider using fopen_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+  C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt\stdio.h(205): note: 参见“fopen”的声明
+c:\users\zzt\desktop\capture\capture\client.cpp(47): warning C4244: “参数”: 从“__int64”转换到“int”，可能丢失数据
+c:\users\zzt\desktop\capture\capture\client.cpp(58): warning C4018: “<”: 有符号/无符号不匹配
+c:\users\zzt\desktop\capture\capture\client.cpp(69): warning C4101: “e”: 未引用的局部变量
+c:\users\zzt\desktop\capture\capture\CaptureVideo.h(328): warning C4244: “=”: 从“double”转换到“int”，可能丢失数据
+c:\users\zzt\desktop\capture\capture\CaptureVideo.h(345): warning C4244: “=”: 从“double”转换到“int”，可能丢失数据
+c:\users\zzt\desktop\capture\capture\CaptureVideo.h(414): warning C4244: “=”: 从“wchar_t”转换到“char”，可能丢失数据
+c:\users\zzt\desktop\capture\capture\CaptureVideo.h(434): warning C4101: “g”: 未引用的局部变量
+  client.cpp
+client.cpp(47): warning C4244: “参数”: 从“__int64”转换到“int”，可能丢失数据
+client.cpp(58): warning C4018: “<”: 有符号/无符号不匹配
+client.cpp(69): warning C4101: “e”: 未引用的局部变量
+  thread.cpp
+c:\users\zzt\desktop\capture\capture\client.cpp(47): warning C4244: “参数”: 从“__int64”转换到“int”，可能丢失数据
+c:\users\zzt\desktop\capture\capture\client.cpp(58): warning C4018: “<”: 有符号/无符号不匹配
+c:\users\zzt\desktop\capture\capture\client.cpp(69): warning C4101: “e”: 未引用的局部变量
+  正在生成代码...
+  .NETFramework,Version=v4.5.2.AssemblyAttributes.cpp
+Capture.obj : warning LNK4248: 无法解析 typeref 标记(0100003C)(为“CvCapture”)；映像可能无法运行
+  Capture.vcxproj -> C:\Users\ZZT\Desktop\Capture\Debug\Capture.exe
