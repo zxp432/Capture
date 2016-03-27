@@ -10,10 +10,7 @@
 
 CvCapture* capture;
 IplImage* frame;
-double fps;
-int now_frame_no = 0;
-int fame_continue = 0;
-std::queue<IplImage> imageQueue;
+std::queue<IplImage> imageQueue;//用于缓冲网络延迟
 
 namespace Capture1 {
 
@@ -41,12 +38,16 @@ namespace Capture1 {
 								  'cow', 'diningtable', 'dog', 'horse',
 								  'motorbike', 'person', 'pottedplant',
 								  'sheep', 'sofa', 'train', 'tvmonitor'*/
-		};  //最后有一个分号
+		};
 	private:Client ^client = gcnew Client();
-			array<Result ^> ^boxes;
+			array<Result ^> ^boxes;//用于存储和显示上一次的检测结果
 			String ^result = "";// "12-12-15-115-0.98-person,12-12-15-115-0.98-person,";
 			System::Windows::Forms::Timer^  timer2;
 			HANDLE hMutex = CreateMutex(NULL, FALSE, NULL);
+			double fps;//表示当前摄像头或视频的fps
+			int now_frame_no = 0;//当前到第几帧
+			int fame_continue = 0;//每多少帧进行一次检测
+			int detectFPS = 10;//每秒检测的fps
 	public:
 		Form1(void)
 		{
@@ -238,19 +239,39 @@ namespace Capture1 {
 		if(button2->Text == "开始")
 		{
 			if (comboBox1->Text == "打开摄像头进行检测")
-			{					
+			{				
+				//先清除上一次检测的结果
+				boxes = gcnew array<Result ^>(1);
+				Result ^temp = gcnew Result();
+				temp->x1 = 0;
+				temp->y1 = 0;
+				temp->x2 = 0;
+				temp->y2 = 0;
+				temp->cls = "";
+				temp->score = "";
+				boxes[0] = temp;
+
 				capture = cvCaptureFromCAM(0);
 				fps = 30;// cvGetCaptureProperty(capture, CV_CAP_PROP_FPS); //视频帧率
-				fame_continue = ceil(fps / 5);
+				fame_continue = ceil(fps / detectFPS);
 				trackBar1->Visible = false;
-				trackBar1->Minimum = 0;
-				trackBar1->Maximum = 0;
 				button2->Text = "停止";
 				timer1->Start();
 				pictureBox1->Location = System::Drawing::Point(12, 38);
 			}
 			else if (comboBox1->Text == "选择视频进行检测")
 			{
+				//先清除上一次检测的结果
+				boxes = gcnew array<Result ^>(1);
+				Result ^temp = gcnew Result();
+				temp->x1 = 0;
+				temp->y1 = 0;
+				temp->x2 = 0;
+				temp->y2 = 0;
+				temp->cls = "";
+				temp->score = "";
+				boxes[0] = temp;
+
 				openFileDialog1->Filter = "AVI files (*.avi)|*.txt|All files (*.*)|*.*";
 				openFileDialog1->FilterIndex = 2;
 				openFileDialog1->RestoreDirectory = true;
@@ -262,7 +283,7 @@ namespace Capture1 {
 					char *fileName = (char*) Marshal::StringToHGlobalAnsi(openFileDialog1->FileName).ToPointer();					
 					capture = cvCaptureFromFile(fileName);
 					fps = cvGetCaptureProperty(capture, CV_CAP_PROP_FPS); //视频帧率
-					fame_continue = ceil(fps / 5);
+					fame_continue = ceil(fps / detectFPS);
 					trackBar1->Minimum = 0;
 					trackBar1->Maximum = (int)cvGetCaptureProperty(capture,CV_CAP_PROP_FRAME_COUNT);
 					button2->Text = "停止";
@@ -317,7 +338,7 @@ namespace Capture1 {
 				{
 					timer2->Start();
 				}
-				if (imageQueue.size() == 6) {
+				if (imageQueue.size() == 6) {//这个6取决于整个网络完成传输一次所需时间 6/30 = 0.2
 					*frame = imageQueue.front();
 					imageQueue.pop();
 					WaitForSingleObject(hMutex, INFINITE);
@@ -375,6 +396,7 @@ namespace Capture1 {
 		}
 		else
 		{
+			//清除上一次检测的结果
 			boxes = gcnew array<Result ^>(1);
 			Result ^temp = gcnew Result();
 			temp->x1 = 0;
