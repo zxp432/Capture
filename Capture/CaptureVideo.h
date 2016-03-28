@@ -10,7 +10,9 @@
 
 CvCapture* capture;
 IplImage* frame;
+int timeCount;
 double fps;
+int fpsCount;
 int now_frame_no = 0;
 int fame_continue = 0;
 std::queue<IplImage> imageQueue;
@@ -46,7 +48,11 @@ namespace Capture1 {
 			array<Result ^> ^boxes;
 			String ^result = "";// "12-12-15-115-0.98-person,12-12-15-115-0.98-person,";
 			System::Windows::Forms::Timer^  timer2;
-			HANDLE hMutex = CreateMutex(NULL, FALSE, NULL);
+	private: System::Windows::Forms::ComboBox^  comboBox2;
+	private: System::Windows::Forms::Label^  label2;
+	private: System::Windows::Forms::Label^  label1;
+	private: System::Windows::Forms::Timer^  timer3;
+			 HANDLE hMutex = CreateMutex(NULL, FALSE, NULL);
 	public:
 		Form1(void)
 		{
@@ -94,65 +100,56 @@ namespace Capture1 {
 		{
 			this->components = (gcnew System::ComponentModel::Container());
 			this->panel1 = (gcnew System::Windows::Forms::Panel());
-			this->groupBox3 = (gcnew System::Windows::Forms::GroupBox());
-			this->button2 = (gcnew System::Windows::Forms::Button());
-			this->comboBox1 = (gcnew System::Windows::Forms::ComboBox());
+			this->label2 = (gcnew System::Windows::Forms::Label());
+			this->label1 = (gcnew System::Windows::Forms::Label());
 			this->groupBox1 = (gcnew System::Windows::Forms::GroupBox());
 			this->trackBar1 = (gcnew System::Windows::Forms::TrackBar());
 			this->pictureBox1 = (gcnew System::Windows::Forms::PictureBox());
+			this->groupBox3 = (gcnew System::Windows::Forms::GroupBox());
+			this->comboBox2 = (gcnew System::Windows::Forms::ComboBox());
+			this->button2 = (gcnew System::Windows::Forms::Button());
+			this->comboBox1 = (gcnew System::Windows::Forms::ComboBox());
 			this->openFileDialog1 = (gcnew System::Windows::Forms::OpenFileDialog());
 			this->timer1 = (gcnew System::Windows::Forms::Timer(this->components));
 			this->timer2 = (gcnew System::Windows::Forms::Timer(this->components));
+			this->timer3 = (gcnew System::Windows::Forms::Timer(this->components));
 			this->panel1->SuspendLayout();
-			this->groupBox3->SuspendLayout();
 			this->groupBox1->SuspendLayout();
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->trackBar1))->BeginInit();
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->pictureBox1))->BeginInit();
+			this->groupBox3->SuspendLayout();
 			this->SuspendLayout();
 			// 
 			// panel1
 			// 
 			this->panel1->BorderStyle = System::Windows::Forms::BorderStyle::FixedSingle;
+			this->panel1->Controls->Add(this->label2);
+			this->panel1->Controls->Add(this->label1);
 			this->panel1->Controls->Add(this->groupBox1);
 			this->panel1->Controls->Add(this->groupBox3);
 			this->panel1->Dock = System::Windows::Forms::DockStyle::Fill;
 			this->panel1->Location = System::Drawing::Point(3, 3);
 			this->panel1->Name = L"panel1";
-			this->panel1->Size = System::Drawing::Size(536, 626);
+			this->panel1->Size = System::Drawing::Size(536, 666);
 			this->panel1->TabIndex = 0;
 			// 
-			// groupBox3
+			// label2
 			// 
-			this->groupBox3->Controls->Add(this->button2);
-			this->groupBox3->Controls->Add(this->comboBox1);
-			this->groupBox3->Font = (gcnew System::Drawing::Font(L"Calibri", 12, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
-				static_cast<System::Byte>(0)));
-			this->groupBox3->Location = System::Drawing::Point(3, 3);
-			this->groupBox3->Name = L"groupBox3";
-			this->groupBox3->Size = System::Drawing::Size(524, 62);
-			this->groupBox3->TabIndex = 10;
-			this->groupBox3->TabStop = false;
-			this->groupBox3->Text = L"检测源";
+			this->label2->AutoSize = true;
+			this->label2->Location = System::Drawing::Point(273, 624);
+			this->label2->Name = L"label2";
+			this->label2->Size = System::Drawing::Size(135, 23);
+			this->label2->TabIndex = 12;
+			this->label2->Text = L"平均接收帧率:";
 			// 
-			// button2
+			// label1
 			// 
-			this->button2->Location = System::Drawing::Point(436, 23);
-			this->button2->Name = L"button2";
-			this->button2->Size = System::Drawing::Size(79, 30);
-			this->button2->TabIndex = 1;
-			this->button2->Text = L"开始";
-			this->button2->UseVisualStyleBackColor = true;
-			this->button2->Click += gcnew System::EventHandler(this, &Form1::button2_Click);
-			// 
-			// comboBox1
-			// 
-			this->comboBox1->DropDownStyle = System::Windows::Forms::ComboBoxStyle::DropDownList;
-			this->comboBox1->FormattingEnabled = true;
-			this->comboBox1->Items->AddRange(gcnew cli::array< System::Object^  >(2) { L"打开摄像头进行检测", L"选择视频进行检测" });
-			this->comboBox1->Location = System::Drawing::Point(13, 23);
-			this->comboBox1->Name = L"comboBox1";
-			this->comboBox1->Size = System::Drawing::Size(417, 27);
-			this->comboBox1->TabIndex = 0;
+			this->label1->AutoSize = true;
+			this->label1->Location = System::Drawing::Point(12, 624);
+			this->label1->Name = L"label1";
+			this->label1->Size = System::Drawing::Size(95, 23);
+			this->label1->TabIndex = 11;
+			this->label1->Text = L"视频帧率:";
 			// 
 			// groupBox1
 			// 
@@ -189,6 +186,54 @@ namespace Capture1 {
 			this->pictureBox1->TabIndex = 0;
 			this->pictureBox1->TabStop = false;
 			// 
+			// groupBox3
+			// 
+			this->groupBox3->Controls->Add(this->comboBox2);
+			this->groupBox3->Controls->Add(this->button2);
+			this->groupBox3->Controls->Add(this->comboBox1);
+			this->groupBox3->Font = (gcnew System::Drawing::Font(L"Calibri", 12, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
+				static_cast<System::Byte>(0)));
+			this->groupBox3->Location = System::Drawing::Point(3, 3);
+			this->groupBox3->Name = L"groupBox3";
+			this->groupBox3->Size = System::Drawing::Size(524, 62);
+			this->groupBox3->TabIndex = 10;
+			this->groupBox3->TabStop = false;
+			this->groupBox3->Text = L"检测源";
+			// 
+			// comboBox2
+			// 
+			this->comboBox2->DropDownStyle = System::Windows::Forms::ComboBoxStyle::DropDownList;
+			this->comboBox2->FormattingEnabled = true;
+			this->comboBox2->Items->AddRange(gcnew cli::array< System::Object^  >(31) {
+				L"1", L"2", L"3", L"4", L"5", L"6", L"7", L"8",
+					L"9", L"10", L"11", L"12", L"13", L"14", L"15", L"16", L"17", L"18", L"19", L"20", L"21", L"22", L"23", L"24", L"25", L"26",
+					L"27", L"28", L"29", L"30", L"检测帧率"
+			});
+			this->comboBox2->Location = System::Drawing::Point(336, 23);
+			this->comboBox2->Name = L"comboBox2";
+			this->comboBox2->Size = System::Drawing::Size(93, 27);
+			this->comboBox2->TabIndex = 2;
+			// 
+			// button2
+			// 
+			this->button2->Location = System::Drawing::Point(435, 23);
+			this->button2->Name = L"button2";
+			this->button2->Size = System::Drawing::Size(79, 27);
+			this->button2->TabIndex = 1;
+			this->button2->Text = L"开始";
+			this->button2->UseVisualStyleBackColor = true;
+			this->button2->Click += gcnew System::EventHandler(this, &Form1::button2_Click);
+			// 
+			// comboBox1
+			// 
+			this->comboBox1->DropDownStyle = System::Windows::Forms::ComboBoxStyle::DropDownList;
+			this->comboBox1->FormattingEnabled = true;
+			this->comboBox1->Items->AddRange(gcnew cli::array< System::Object^  >(3) { L"打开摄像头进行检测", L"选择视频进行检测", L"请选择检测种类" });
+			this->comboBox1->Location = System::Drawing::Point(13, 23);
+			this->comboBox1->Name = L"comboBox1";
+			this->comboBox1->Size = System::Drawing::Size(317, 27);
+			this->comboBox1->TabIndex = 0;
+			// 
 			// openFileDialog1
 			// 
 			this->openFileDialog1->FileName = L"openFileDialog1";
@@ -203,11 +248,16 @@ namespace Capture1 {
 			this->timer2->Interval = 10;
 			this->timer2->Tick += gcnew System::EventHandler(this, &Form1::timer2_Tick);
 			// 
+			// timer3
+			// 
+			this->timer3->Interval = 1000;
+			this->timer3->Tick += gcnew System::EventHandler(this, &Form1::timer3_Tick);
+			// 
 			// Form1
 			// 
 			this->AutoScaleDimensions = System::Drawing::SizeF(10, 23);
 			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::Font;
-			this->ClientSize = System::Drawing::Size(542, 632);
+			this->ClientSize = System::Drawing::Size(542, 672);
 			this->Controls->Add(this->panel1);
 			this->Font = (gcnew System::Drawing::Font(L"Calibri", 14.25F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(0)));
@@ -220,10 +270,11 @@ namespace Capture1 {
 			this->StartPosition = System::Windows::Forms::FormStartPosition::CenterScreen;
 			this->Text = L"实时物体检测";
 			this->panel1->ResumeLayout(false);
-			this->groupBox3->ResumeLayout(false);
+			this->panel1->PerformLayout();
 			this->groupBox1->ResumeLayout(false);
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->trackBar1))->EndInit();
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->pictureBox1))->EndInit();
+			this->groupBox3->ResumeLayout(false);
 			this->ResumeLayout(false);
 
 		}
@@ -231,9 +282,9 @@ namespace Capture1 {
 
 	private: System::Void button2_Click(System::Object^  sender, System::EventArgs^  e) 
 	{
-		if(comboBox1->Text == "")
+		if(comboBox1->Text == "请选择检测种类"||comboBox2->Text == "检测帧率")
 		{
-			MessageBox::Show(this,"Select Capture Method","Error!!!");
+			MessageBox::Show(this,"请选择检测种类或帧率","错误!!!");
 		}
 		if(button2->Text == "开始")
 		{
@@ -241,13 +292,17 @@ namespace Capture1 {
 			{					
 				capture = cvCaptureFromCAM(0);
 				fps = 30;// cvGetCaptureProperty(capture, CV_CAP_PROP_FPS); //视频帧率
-				fame_continue = ceil(fps / 5);
+				fame_continue = int::Parse(comboBox2->Text);
 				trackBar1->Visible = false;
 				trackBar1->Minimum = 0;
 				trackBar1->Maximum = 0;
 				button2->Text = "停止";
+				timeCount = 0;
+				fpsCount = 0;
 				timer1->Start();
+				timer3->Start();
 				pictureBox1->Location = System::Drawing::Point(12, 38);
+				label1->Text = "视频帧率: 30fps";
 			}
 			else if (comboBox1->Text == "选择视频进行检测")
 			{
@@ -262,8 +317,12 @@ namespace Capture1 {
 					char *fileName = (char*) Marshal::StringToHGlobalAnsi(openFileDialog1->FileName).ToPointer();					
 					capture = cvCaptureFromFile(fileName);
 					fps = cvGetCaptureProperty(capture, CV_CAP_PROP_FPS); //视频帧率
-					fame_continue = ceil(fps / 5);
+					fame_continue = int::Parse(comboBox2->Text);
 					trackBar1->Minimum = 0;
+					timeCount = 0;
+					fpsCount = 0;
+					timer3->Start();
+					label1->Text = "视频帧率: " + double(int(fps*100))/100 + "fps";
 					trackBar1->Maximum = (int)cvGetCaptureProperty(capture,CV_CAP_PROP_FRAME_COUNT);
 					button2->Text = "停止";
 					timer1->Start();
@@ -276,6 +335,7 @@ namespace Capture1 {
 			button2->Text = "开始";
 			timer1->Stop();
 			timer2->Stop();
+			timer3->Stop();
 			now_frame_no = 0;
 		}
 	}
@@ -356,6 +416,7 @@ namespace Capture1 {
 		client->connect();
 		client->sendImg(frame);
 		result = client->receive();
+		fpsCount++;
 		if (!result->Equals(""))
 		{
 			array<String ^> ^boxString = result->Split(',');
@@ -389,6 +450,10 @@ namespace Capture1 {
 		ReleaseMutex(hMutex);
 		timer2->Stop();
 	}
+private: System::Void timer3_Tick(System::Object^  sender, System::EventArgs^  e) {
+	timeCount++;
+	label2->Text = "平均接收帧率: " + (double)((int)(((double)fpsCount / timeCount)*100))/100 + "fps";
+}
 };
 }
 
