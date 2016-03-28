@@ -10,7 +10,14 @@
 
 CvCapture* capture;
 IplImage* frame;
+<<<<<<< HEAD
 std::queue<IplImage> imageQueue;//用于缓冲网络延迟
+=======
+double fps;
+int now_frame_no = 0;
+int fame_continue = 0;
+std::queue<IplImage> imageQueue;
+>>>>>>> parent of 89b6782... 2016.3.28-鍛ㄦ槉
 
 namespace Capture1 {
 
@@ -44,10 +51,13 @@ namespace Capture1 {
 			String ^result = "";// "12-12-15-115-0.98-person,12-12-15-115-0.98-person,";
 			System::Windows::Forms::Timer^  timer2;
 			HANDLE hMutex = CreateMutex(NULL, FALSE, NULL);
+<<<<<<< HEAD
 			double fps;//表示当前摄像头或视频的fps
 			int now_frame_no = 0;//当前到第几帧
 			int fame_continue = 0;//每多少帧进行一次检测
 			int detectFPS = 10;//每秒检测的fps
+=======
+>>>>>>> parent of 89b6782... 2016.3.28-鍛ㄦ槉
 	public:
 		Form1(void)
 		{
@@ -136,6 +146,7 @@ namespace Capture1 {
 			this->groupBox3->Text = L"检测源";
 			// 
 			// button2
+<<<<<<< HEAD
 			// 
 			this->button2->Location = System::Drawing::Point(436, 23);
 			this->button2->Name = L"button2";
@@ -147,6 +158,19 @@ namespace Capture1 {
 			// 
 			// comboBox1
 			// 
+=======
+			// 
+			this->button2->Location = System::Drawing::Point(436, 23);
+			this->button2->Name = L"button2";
+			this->button2->Size = System::Drawing::Size(79, 30);
+			this->button2->TabIndex = 1;
+			this->button2->Text = L"开始";
+			this->button2->UseVisualStyleBackColor = true;
+			this->button2->Click += gcnew System::EventHandler(this, &Form1::button2_Click);
+			// 
+			// comboBox1
+			// 
+>>>>>>> parent of 89b6782... 2016.3.28-鍛ㄦ槉
 			this->comboBox1->DropDownStyle = System::Windows::Forms::ComboBoxStyle::DropDownList;
 			this->comboBox1->FormattingEnabled = true;
 			this->comboBox1->Items->AddRange(gcnew cli::array< System::Object^  >(2) { L"打开摄像头进行检测", L"选择视频进行检测" });
@@ -253,7 +277,11 @@ namespace Capture1 {
 
 				capture = cvCaptureFromCAM(0);
 				fps = 30;// cvGetCaptureProperty(capture, CV_CAP_PROP_FPS); //视频帧率
+<<<<<<< HEAD
 				fame_continue = ceil(fps / detectFPS);
+=======
+				fame_continue = ceil(fps / 5);
+>>>>>>> parent of 89b6782... 2016.3.28-鍛ㄦ槉
 				trackBar1->Visible = false;
 				button2->Text = "停止";
 				timer1->Start();
@@ -283,7 +311,11 @@ namespace Capture1 {
 					char *fileName = (char*) Marshal::StringToHGlobalAnsi(openFileDialog1->FileName).ToPointer();					
 					capture = cvCaptureFromFile(fileName);
 					fps = cvGetCaptureProperty(capture, CV_CAP_PROP_FPS); //视频帧率
+<<<<<<< HEAD
 					fame_continue = ceil(fps / detectFPS);
+=======
+					fame_continue = ceil(fps / 5);
+>>>>>>> parent of 89b6782... 2016.3.28-鍛ㄦ槉
 					trackBar1->Minimum = 0;
 					trackBar1->Maximum = (int)cvGetCaptureProperty(capture,CV_CAP_PROP_FRAME_COUNT);
 					button2->Text = "停止";
