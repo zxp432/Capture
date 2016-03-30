@@ -64,6 +64,8 @@ namespace Capture1 {
 	private: System::Windows::Forms::Timer^  timer3;
 			 HANDLE hMutex = CreateMutex(NULL, FALSE, NULL);
 			 HANDLE timer1Handle = CreateMutex(NULL, FALSE, NULL);
+
+
 			 HANDLE timer2Handle = CreateMutex(NULL, FALSE, NULL);
 	public:
 		Form1(void)
@@ -219,6 +221,9 @@ namespace Capture1 {
 			this->pictureBox1->SizeMode = System::Windows::Forms::PictureBoxSizeMode::StretchImage;
 			this->pictureBox1->TabIndex = 0;
 			this->pictureBox1->TabStop = false;
+			this->pictureBox1->MouseDown += gcnew System::Windows::Forms::MouseEventHandler(this, &Form1::pictureBox1_MouseDown);
+			this->pictureBox1->MouseMove += gcnew System::Windows::Forms::MouseEventHandler(this, &Form1::pictureBox1_MouseMove);
+			this->pictureBox1->MouseUp += gcnew System::Windows::Forms::MouseEventHandler(this, &Form1::pictureBox1_MouseUp);
 			// 
 			// groupBox3
 			// 
@@ -371,6 +376,10 @@ namespace Capture1 {
 			timer2->Stop();
 			timer3->Stop();
 			now_frame_no = 0;
+			startPoint = nullptr;
+			endPoint = nullptr;
+			//pictureBox1->Enabled = false;
+			drawing = false;
 		}
 	}
 
@@ -436,7 +445,12 @@ namespace Capture1 {
 
 					pictureBox1->Image = gcnew System::Drawing::Bitmap(frame->width, frame->height, frame->widthStep, System::Drawing::Imaging::PixelFormat::Format24bppRgb, (System::IntPtr) frame->imageData);
 					pictureBox1->Refresh();
-
+					if (endPoint != nullptr) {
+						int leftTopX = startPoint->X < endPoint->X ? startPoint->X : endPoint->X;
+						int leftTopY = startPoint->Y < endPoint->Y ? startPoint->Y : endPoint->Y;
+						Graphics ^g = pictureBox1->CreateGraphics();
+						g->DrawRectangle(gcnew Pen(Color::Blue, 2), leftTopX, leftTopY, Math::Abs(endPoint->X - startPoint->X), Math::Abs(endPoint->Y - startPoint->Y));
+					}
 					//					trackBar1->Value = (int)cvGetCaptureProperty(capture, CV_CAP_PROP_POS_FRAMES);
 					double codec_double = cvGetCaptureProperty(capture, CV_CAP_PROP_FOURCC);
 					//label6->Text = "Codec: " + System::Text::Encoding::UTF8->GetString(BitConverter::GetBytes((int)codec_double));
@@ -502,6 +516,37 @@ namespace Capture1 {
 		timeCount++;
 		label1->Text = "视频帧率: " + (double)((int)(((double)now_frame_no / timeCount) * 100)) / 100 + "fps";
 		label2->Text = "平均接收帧率: " + (double)((int)(((double)fpsCount / timeCount) * 100)) / 100 + "fps";
+	}
+	private:Point ^startPoint = nullptr, ^endPoint = nullptr;//鼠标下落点和离开店
+			bool drawing = false;
+	private: System::Void pictureBox1_MouseDown(System::Object^  sender, System::Windows::Forms::MouseEventArgs^  e) {
+		startPoint = gcnew Point(e->X, e->Y);
+		endPoint = nullptr;
+		drawing = true;
+	}
+	private: System::Void pictureBox1_MouseUp(System::Object^  sender, System::Windows::Forms::MouseEventArgs^  e) {
+		drawing = false;
+		endPoint = gcnew Point(e->X, e->Y);
+	}
+	private: System::Void pictureBox1_MouseMove(System::Object^  sender, System::Windows::Forms::MouseEventArgs^  e) {
+		Graphics ^g = pictureBox1->CreateGraphics();
+		if (e->Button == System::Windows::Forms::MouseButtons::Left) {
+			if (drawing)
+			{
+				//drawing = true;  
+				g->SmoothingMode = System::Drawing::Drawing2D::SmoothingMode::AntiAlias;//消除锯齿  
+				//g->DrawLine(gcnew Pen(Color::Blue, 2), startPoint->X, startPoint->Y, e->X, e->Y);
+				pictureBox1->Refresh();
+				//g->Clear(pictureBox1->BackColor);
+				//找出矩形的最左上角
+				int leftTopX = startPoint->X < e->X ? startPoint->X : e->X;
+				int leftTopY = startPoint->Y < e->Y ? startPoint->Y : e->Y;
+
+				g->DrawRectangle(gcnew Pen(Color::Blue, 2), leftTopX, leftTopY, Math::Abs(e->X - startPoint->X), Math::Abs(e->Y - startPoint->Y));
+				//startPoint->X = e->X;
+				//startPoint->Y = e->Y;
+			}
+		}
 	}
 	};
 }
