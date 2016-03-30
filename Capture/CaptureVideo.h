@@ -7,6 +7,7 @@
 #include "client.cpp"
 #include <windows.h>
 #include <queue>
+#include "utils.h"
 
 CvCapture* capture;
 IplImage* frame;
@@ -423,18 +424,10 @@ namespace Capture1 {
 
 						//cvFrame(frame, 50, 50, 400, 200);
 						//Ð´×Ö
-						char cls[40];
-						char score[10];
-						for (int i = 0; i < box->cls->Length; i++)
-						{
-							cls[i] = box->cls[i];
-						}
-						cls[box->cls->Length] = '\0';
-						for (int i = 0; i < box->score->Length; i++)
-						{
-							score[i] = box->score[i];
-						}
-						score[box->score->Length] = '\0';
+						/*char cls[40];
+						char score[10];*/
+						char *cls = StringToCharArray(box->cls);
+						char *score = StringToCharArray(box->score);
 						cvText(frame, cls, box->x1, box->y1, score);
 						//»­¿ò×Ó
 						cvFrame(frame, box->x1, box->y1, box->x2, box->y2, cls);
