@@ -40,11 +40,11 @@ namespace Capture1 {
 	using namespace System::Threading;
 	using namespace SocketCommu;
 	using namespace System::Collections::Generic;
-	using namespace System::Runtime::InteropServices;
+	//using namespace System::Runtime::InteropServices;
+	using namespace System::Media;
 
 	public ref class Form1 : public System::Windows::Forms::Form
 	{
-		//[DllImport("kernel32.dll")];
 	private:Client ^client = gcnew Client();
 			array<UtilSpace::Result ^> ^boxes;
 			String ^result = "";// "12-12-15-115-0.98-person,12-12-15-115-0.98-person,";
@@ -55,7 +55,6 @@ namespace Capture1 {
 			HANDLE timer2Handle = CreateMutex(NULL, FALSE, NULL);
 			int frameWidth = 640;
 			int frameHeight = 480;
-			//static int Beep(int dwFreq, int dwDuration);
 	public:
 		Form1(void)
 		{
@@ -170,6 +169,7 @@ namespace Capture1 {
 			// labelWarning
 			// 
 			this->labelWarning->AutoSize = true;
+			this->labelWarning->ForeColor = System::Drawing::Color::Red;
 			this->labelWarning->Location = System::Drawing::Point(280, 638);
 			this->labelWarning->Name = L"labelWarning";
 			this->labelWarning->Size = System::Drawing::Size(0, 23);
@@ -200,7 +200,7 @@ namespace Capture1 {
 			this->label2->AutoSize = true;
 			this->label2->Location = System::Drawing::Point(280, 688);
 			this->label2->Name = L"label2";
-			this->label2->Size = System::Drawing::Size(135, 23);
+			this->label2->Size = System::Drawing::Size(104, 23);
 			this->label2->TabIndex = 12;
 			this->label2->Text = L"平均接收帧率:";
 			// 
@@ -488,7 +488,10 @@ namespace Capture1 {
 						{
 							cvRectangle(frame, cvPoint(region->x1, region->y1), cvPoint(region->x2, region->y2), CV_RGB(255, 0, 0), CV_FILLED);
 							labelWarning->Text = "警告！！！";
-							//Interaction.Beep();
+							//SystemSounds::Beep->Play();
+							System::Media::SoundPlayer ^sp = gcnew SoundPlayer();
+							sp->SoundLocation = "BLEEP1_S.WAV";
+							sp->PlaySync();
 						}
 
 					}
