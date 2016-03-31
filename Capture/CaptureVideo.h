@@ -8,6 +8,7 @@
 #include <windows.h>
 #include <queue>
 #include "utils.h"
+#include "utilCLass.h"
 
 CvCapture* capture;
 IplImage* frame;
@@ -38,35 +39,23 @@ namespace Capture1 {
 	using namespace System::Runtime::InteropServices;
 	using namespace System::Threading;
 	using namespace SocketCommu;
+	using namespace System::Collections::Generic;
+	using namespace System::Runtime::InteropServices;
 
 	public ref class Form1 : public System::Windows::Forms::Form
 	{
-	public:ref struct Result
-	{
-		int x1;
-		int y1;
-		int x2;
-		int y2;
-		System::String ^score;
-		System::String ^cls;  /*'aeroplane', 'bicycle', 'bird', 'boat',
-							  'bottle', 'bus', 'car', 'cat', 'chair',
-							  'cow', 'diningtable', 'dog', 'horse',
-							  'motorbike', 'person', 'pottedplant',
-							  'sheep', 'sofa', 'train', 'tvmonitor'*/
-	};  //最后有一个分号
+		//[DllImport("kernel32.dll")];
 	private:Client ^client = gcnew Client();
-			array<Result ^> ^boxes;
+			array<UtilSpace::Result ^> ^boxes;
 			String ^result = "";// "12-12-15-115-0.98-person,12-12-15-115-0.98-person,";
 			System::Windows::Forms::Timer^  timer2;
-	private: System::Windows::Forms::ComboBox^  comboBox2;
-	private: System::Windows::Forms::Label^  label2;
-	private: System::Windows::Forms::Label^  label1;
-	private: System::Windows::Forms::Timer^  timer3;
-			 HANDLE hMutex = CreateMutex(NULL, FALSE, NULL);
-			 HANDLE timer1Handle = CreateMutex(NULL, FALSE, NULL);
-
-
-			 HANDLE timer2Handle = CreateMutex(NULL, FALSE, NULL);
+			List<UtilSpace::Rectangle ^> ^regions;
+			HANDLE hMutex = CreateMutex(NULL, FALSE, NULL);//用于frame多线程读写时的互斥变量
+			HANDLE timer1Handle = CreateMutex(NULL, FALSE, NULL);
+			HANDLE timer2Handle = CreateMutex(NULL, FALSE, NULL);
+			int frameWidth = 640;
+			int frameHeight = 480;
+			//static int Beep(int dwFreq, int dwDuration);
 	public:
 		Form1(void)
 		{
@@ -92,6 +81,8 @@ namespace Capture1 {
 			colorMap["sofa"] = { 138, 43, 226 };
 			colorMap["train"] = { 48, 128, 20 };
 			colorMap[""] = { 0, 0, 0 };
+			regions = gcnew List<UtilSpace::Rectangle^>();
+
 			InitializeComponent();
 		}
 
@@ -106,12 +97,6 @@ namespace Capture1 {
 
 #pragma region Window_control
 	private: System::Windows::Forms::Panel^  panel1;
-
-
-
-
-
-
 	private: System::Windows::Forms::GroupBox^  groupBox3;
 	private: System::Windows::Forms::Button^  button2;
 	private: System::Windows::Forms::ComboBox^  comboBox1;
@@ -121,6 +106,13 @@ namespace Capture1 {
 	private: System::Windows::Forms::OpenFileDialog^  openFileDialog1;
 	private: System::Windows::Forms::Timer^  timer1;
 	private: System::ComponentModel::IContainer^  components;
+	private: System::Windows::Forms::ComboBox^  comboBox2;
+	private: System::Windows::Forms::Label^  label2;
+	private: System::Windows::Forms::Label^  label1;
+	private: System::Windows::Forms::Timer^  timer3;
+	private: System::Windows::Forms::Button^  buttonClean;
+	private: System::Windows::Forms::Button^  buttonPaint;
+	private: System::Windows::Forms::Label^  labelWarning;
 #pragma endregion
 
 	protected:
@@ -136,6 +128,9 @@ namespace Capture1 {
 		{
 			this->components = (gcnew System::ComponentModel::Container());
 			this->panel1 = (gcnew System::Windows::Forms::Panel());
+			this->labelWarning = (gcnew System::Windows::Forms::Label());
+			this->buttonClean = (gcnew System::Windows::Forms::Button());
+			this->buttonPaint = (gcnew System::Windows::Forms::Button());
 			this->label2 = (gcnew System::Windows::Forms::Label());
 			this->label1 = (gcnew System::Windows::Forms::Label());
 			this->groupBox1 = (gcnew System::Windows::Forms::GroupBox());
@@ -159,6 +154,9 @@ namespace Capture1 {
 			// panel1
 			// 
 			this->panel1->BorderStyle = System::Windows::Forms::BorderStyle::FixedSingle;
+			this->panel1->Controls->Add(this->labelWarning);
+			this->panel1->Controls->Add(this->buttonClean);
+			this->panel1->Controls->Add(this->buttonPaint);
 			this->panel1->Controls->Add(this->label2);
 			this->panel1->Controls->Add(this->label1);
 			this->panel1->Controls->Add(this->groupBox1);
@@ -166,13 +164,41 @@ namespace Capture1 {
 			this->panel1->Dock = System::Windows::Forms::DockStyle::Fill;
 			this->panel1->Location = System::Drawing::Point(3, 3);
 			this->panel1->Name = L"panel1";
-			this->panel1->Size = System::Drawing::Size(536, 666);
+			this->panel1->Size = System::Drawing::Size(676, 730);
 			this->panel1->TabIndex = 0;
+			// 
+			// labelWarning
+			// 
+			this->labelWarning->AutoSize = true;
+			this->labelWarning->Location = System::Drawing::Point(280, 638);
+			this->labelWarning->Name = L"labelWarning";
+			this->labelWarning->Size = System::Drawing::Size(0, 23);
+			this->labelWarning->TabIndex = 15;
+			// 
+			// buttonClean
+			// 
+			this->buttonClean->Location = System::Drawing::Point(126, 633);
+			this->buttonClean->Name = L"buttonClean";
+			this->buttonClean->Size = System::Drawing::Size(102, 33);
+			this->buttonClean->TabIndex = 14;
+			this->buttonClean->Text = L"清除区域";
+			this->buttonClean->UseVisualStyleBackColor = true;
+			this->buttonClean->Click += gcnew System::EventHandler(this, &Form1::buttonClean_Click);
+			// 
+			// buttonPaint
+			// 
+			this->buttonPaint->Location = System::Drawing::Point(18, 633);
+			this->buttonPaint->Name = L"buttonPaint";
+			this->buttonPaint->Size = System::Drawing::Size(102, 33);
+			this->buttonPaint->TabIndex = 13;
+			this->buttonPaint->Text = L"新建区域";
+			this->buttonPaint->UseVisualStyleBackColor = true;
+			this->buttonPaint->Click += gcnew System::EventHandler(this, &Form1::buttonPaint_Click);
 			// 
 			// label2
 			// 
 			this->label2->AutoSize = true;
-			this->label2->Location = System::Drawing::Point(273, 624);
+			this->label2->Location = System::Drawing::Point(280, 688);
 			this->label2->Name = L"label2";
 			this->label2->Size = System::Drawing::Size(135, 23);
 			this->label2->TabIndex = 12;
@@ -181,7 +207,7 @@ namespace Capture1 {
 			// label1
 			// 
 			this->label1->AutoSize = true;
-			this->label1->Location = System::Drawing::Point(12, 624);
+			this->label1->Location = System::Drawing::Point(25, 688);
 			this->label1->Name = L"label1";
 			this->label1->Size = System::Drawing::Size(95, 23);
 			this->label1->TabIndex = 11;
@@ -197,7 +223,7 @@ namespace Capture1 {
 			this->groupBox1->Margin = System::Windows::Forms::Padding(5);
 			this->groupBox1->Name = L"groupBox1";
 			this->groupBox1->Padding = System::Windows::Forms::Padding(5);
-			this->groupBox1->Size = System::Drawing::Size(522, 558);
+			this->groupBox1->Size = System::Drawing::Size(664, 559);
 			this->groupBox1->TabIndex = 9;
 			this->groupBox1->TabStop = false;
 			this->groupBox1->Text = L"视频";
@@ -207,7 +233,7 @@ namespace Capture1 {
 			this->trackBar1->AutoSize = false;
 			this->trackBar1->Location = System::Drawing::Point(13, 534);
 			this->trackBar1->Name = L"trackBar1";
-			this->trackBar1->Size = System::Drawing::Size(501, 26);
+			this->trackBar1->Size = System::Drawing::Size(639, 26);
 			this->trackBar1->TabIndex = 1;
 			this->trackBar1->Visible = false;
 			this->trackBar1->Scroll += gcnew System::EventHandler(this, &Form1::trackBar1_Scroll);
@@ -217,7 +243,7 @@ namespace Capture1 {
 			this->pictureBox1->BorderStyle = System::Windows::Forms::BorderStyle::FixedSingle;
 			this->pictureBox1->Location = System::Drawing::Point(12, 38);
 			this->pictureBox1->Name = L"pictureBox1";
-			this->pictureBox1->Size = System::Drawing::Size(500, 500);
+			this->pictureBox1->Size = System::Drawing::Size(640, 480);
 			this->pictureBox1->SizeMode = System::Windows::Forms::PictureBoxSizeMode::StretchImage;
 			this->pictureBox1->TabIndex = 0;
 			this->pictureBox1->TabStop = false;
@@ -234,7 +260,7 @@ namespace Capture1 {
 				static_cast<System::Byte>(0)));
 			this->groupBox3->Location = System::Drawing::Point(3, 3);
 			this->groupBox3->Name = L"groupBox3";
-			this->groupBox3->Size = System::Drawing::Size(524, 62);
+			this->groupBox3->Size = System::Drawing::Size(666, 62);
 			this->groupBox3->TabIndex = 10;
 			this->groupBox3->TabStop = false;
 			this->groupBox3->Text = L"检测源";
@@ -296,7 +322,7 @@ namespace Capture1 {
 			// 
 			this->AutoScaleDimensions = System::Drawing::SizeF(10, 23);
 			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::Font;
-			this->ClientSize = System::Drawing::Size(542, 672);
+			this->ClientSize = System::Drawing::Size(682, 736);
 			this->Controls->Add(this->panel1);
 			this->Font = (gcnew System::Drawing::Font(L"Calibri", 14.25F, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
 				static_cast<System::Byte>(0)));
@@ -330,7 +356,7 @@ namespace Capture1 {
 			if (comboBox1->Text == "打开摄像头进行检测")
 			{
 				capture = cvCaptureFromCAM(0);
-				fps = 30;// cvGetCaptureProperty(capture, CV_CAP_PROP_FPS); //视频帧率
+				//fps = cvGetCaptureProperty(capture, CV_CAP_PROP_FPS); //视频帧率
 				fame_continue = int::Parse(comboBox2->Text);
 				trackBar1->Visible = false;
 				trackBar1->Minimum = 0;
@@ -341,7 +367,7 @@ namespace Capture1 {
 				timer1->Start();
 				timer3->Start();
 				pictureBox1->Location = System::Drawing::Point(12, 38);
-				label1->Text = "视频帧率: 30fps";
+				label1->Text = "视频帧率:";
 			}
 			else if (comboBox1->Text == "选择视频进行检测")
 			{
@@ -361,7 +387,7 @@ namespace Capture1 {
 					timeCount = 0;
 					fpsCount = 0;
 					timer3->Start();
-					label1->Text = "视频帧率: " + double(int(fps * 100)) / 100 + "fps";
+					//label1->Text = "视频帧率: " + double(int(fps * 100)) / 100 + "fps";
 					trackBar1->Maximum = (int)cvGetCaptureProperty(capture, CV_CAP_PROP_FRAME_COUNT);
 					button2->Text = "停止";
 					timer1->Start();
@@ -380,6 +406,8 @@ namespace Capture1 {
 			endPoint = nullptr;
 			//pictureBox1->Enabled = false;
 			drawing = false;
+			newDraw = false;
+			regions->Clear();
 		}
 	}
 
@@ -412,6 +440,7 @@ namespace Capture1 {
 		cvRectangle(img, cvPoint(x1, y1), cvPoint(x2, y2), CV_RGB((*it).second.R, (*it).second.G, (*it).second.B), 2);
 	}
 
+	//循环画帧
 	private: System::Void timer1_Tick(System::Object^  sender, System::EventArgs^  e)
 	{
 		try
@@ -420,57 +449,67 @@ namespace Capture1 {
 			if (frame != NULL)
 			{
 				imageQueue.push(*frame);
-				if (now_frame_no % fame_continue == 0)//发送帧，改变框子参数.
+				if (now_frame_no % fame_continue == 0)//发送帧，改变检测结果.
 				{
 					timer2->Start();
 				}
 				if (imageQueue.size() == 6) {
+					labelWarning->Text = "";//初始化警告框
 					*frame = imageQueue.front();
 					imageQueue.pop();
-					WaitForSingleObject(hMutex, INFINITE);
-					for each (Result ^box in boxes)
-					{
 
-						//cvFrame(frame, 50, 50, 400, 200);
-						//写字
-						/*char cls[40];
-						char score[10];*/
+					WaitForSingleObject(hMutex, INFINITE);
+					//画出检测结果
+					for each (UtilSpace::Result ^box in boxes)
+					{
 						char *cls = StringToCharArray(box->cls);
 						char *score = StringToCharArray(box->score);
+						//写字
 						cvText(frame, cls, box->x1, box->y1, score);
 						//画框子
 						cvFrame(frame, box->x1, box->y1, box->x2, box->y2, cls);
+					}
+					//画出警告区域
+					for each(UtilSpace::Rectangle ^region in regions) {
+
+						bool call_110 = false;
+						//检测有没有是人的框子踏入了警告区域
+						for each (UtilSpace::Result ^box in boxes)
+						{
+							if (box->cls->Equals("person") && UtilSpace::Rectangle::areTwoRectsOverlapped(region, box))//如果有人的区域与警告区域重叠，跳出循环，警告
+							{
+								call_110 = true;
+								break;
+							}
+						}
+						if(!call_110)
+							cvRectangle(frame, cvPoint(region->x1, region->y1), cvPoint(region->x2, region->y2), CV_RGB(0,0,255), 2);
+						else
+						{
+							cvRectangle(frame, cvPoint(region->x1, region->y1), cvPoint(region->x2, region->y2), CV_RGB(255, 0, 0), CV_FILLED);
+							labelWarning->Text = "警告！！！";
+							//Interaction.Beep();
+						}
+
 					}
 					ReleaseMutex(hMutex);
 
 					pictureBox1->Image = gcnew System::Drawing::Bitmap(frame->width, frame->height, frame->widthStep, System::Drawing::Imaging::PixelFormat::Format24bppRgb, (System::IntPtr) frame->imageData);
 					pictureBox1->Refresh();
-					if (endPoint != nullptr) {
-						int leftTopX = startPoint->X < endPoint->X ? startPoint->X : endPoint->X;
-						int leftTopY = startPoint->Y < endPoint->Y ? startPoint->Y : endPoint->Y;
-						Graphics ^g = pictureBox1->CreateGraphics();
-						g->DrawRectangle(gcnew Pen(Color::Blue, 2), leftTopX, leftTopY, Math::Abs(endPoint->X - startPoint->X), Math::Abs(endPoint->Y - startPoint->Y));
-					}
-					//					trackBar1->Value = (int)cvGetCaptureProperty(capture, CV_CAP_PROP_POS_FRAMES);
-					double codec_double = cvGetCaptureProperty(capture, CV_CAP_PROP_FOURCC);
-					//label6->Text = "Codec: " + System::Text::Encoding::UTF8->GetString(BitConverter::GetBytes((int)codec_double));
+					//trackBar1->Value = (int)cvGetCaptureProperty(capture, CV_CAP_PROP_POS_FRAMES);
 
 					WaitForSingleObject(timer1Handle, INFINITE);
 					now_frame_no++;
 					ReleaseMutex(timer1Handle);
 				}
 			}
-			/*if (now_frame_no == 30) {
-			timer1->Stop();
-			timer2->Stop();
-			timer3->Stop();
-			label2->Text = "共经历这么多秒: " + timeCount;
-			}*/
 		}
 		catch (Exception ^g) {
 			client->closeSocket();
 		}
 	}
+
+	//发送需要被检测的帧到服务器并返回结果，然后结束自己
 	private: System::Void timer2_Tick(System::Object^  sender, System::EventArgs^  e) {
 		client->connect();
 		WaitForSingleObject(hMutex, INFINITE);
@@ -482,10 +521,10 @@ namespace Capture1 {
 		if (!result->Equals(""))
 		{
 			array<String ^> ^boxString = result->Split(',');
-			boxes = gcnew array<Result ^>(boxString->Length - 1);
+			boxes = gcnew array<UtilSpace::Result ^>(boxString->Length - 1);
 			for (int i = 0; i < boxString->Length - 1; i++)
 			{
-				Result ^temp = gcnew Result();
+				UtilSpace::Result ^temp = gcnew UtilSpace::Result();
 				array<String ^> ^box = boxString[i]->Split('-');
 				temp->x1 = int::Parse(box[0]);
 				temp->y1 = int::Parse(box[1]);
@@ -498,8 +537,8 @@ namespace Capture1 {
 		}
 		else
 		{
-			boxes = gcnew array<Result ^>(1);
-			Result ^temp = gcnew Result();
+			boxes = gcnew array<UtilSpace::Result ^>(1);
+			UtilSpace::Result ^temp = gcnew UtilSpace::Result();
 			temp->x1 = 0;
 			temp->y1 = 0;
 			temp->x2 = 0;
@@ -512,21 +551,44 @@ namespace Capture1 {
 		ReleaseMutex(hMutex);
 		timer2->Stop();
 	}
+
+	//显示数据用的线程
 	private: System::Void timer3_Tick(System::Object^  sender, System::EventArgs^  e) {
 		timeCount++;
 		label1->Text = "视频帧率: " + (double)((int)(((double)now_frame_no / timeCount) * 100)) / 100 + "fps";
 		label2->Text = "平均接收帧率: " + (double)((int)(((double)fpsCount / timeCount) * 100)) / 100 + "fps";
 	}
+
+	//警告区域相关的函数
 	private:Point ^startPoint = nullptr, ^endPoint = nullptr;//鼠标下落点和离开店
 			bool drawing = false;
+			bool newDraw = false;
+
 	private: System::Void pictureBox1_MouseDown(System::Object^  sender, System::Windows::Forms::MouseEventArgs^  e) {
-		startPoint = gcnew Point(e->X, e->Y);
-		endPoint = nullptr;
-		drawing = true;
+		if (newDraw) {
+			startPoint = gcnew Point(e->X, e->Y);
+			endPoint = nullptr;
+			drawing = true;
+		}
 	}
 	private: System::Void pictureBox1_MouseUp(System::Object^  sender, System::Windows::Forms::MouseEventArgs^  e) {
-		drawing = false;
-		endPoint = gcnew Point(e->X, e->Y);
+		if(newDraw){
+			drawing = false;
+			endPoint = gcnew Point(e->X, e->Y);
+			newDraw = false;
+			//计算当前picturebox上的点的位置
+			int topleftX = startPoint->X < endPoint->X ? startPoint->X : endPoint->X;
+			int topleftY = startPoint->Y < endPoint->Y ? startPoint->Y : endPoint->Y;
+			int bootomRightX = startPoint->X > endPoint->X ? startPoint->X : endPoint->X;
+			int bootomRightY = startPoint->Y > endPoint->Y ? startPoint->Y : endPoint->Y;
+			//映射回frame
+			int x1 = frameWidth * topleftX / pictureBox1->Width;
+			int y1 = frameHeight * topleftY / pictureBox1->Height;
+			int x2 = frameWidth * bootomRightX / pictureBox1->Width;
+			int y2 = frameHeight * bootomRightY / pictureBox1->Height;
+
+			regions->Add(gcnew UtilSpace::Rectangle(x1, y1, x2, y2));
+		}
 	}
 	private: System::Void pictureBox1_MouseMove(System::Object^  sender, System::Windows::Forms::MouseEventArgs^  e) {
 		Graphics ^g = pictureBox1->CreateGraphics();
@@ -548,6 +610,13 @@ namespace Capture1 {
 			}
 		}
 	}
-	};
+	private: System::Void buttonPaint_Click(System::Object^  sender, System::EventArgs^  e) {
+		newDraw = true;
+	}
+	private: System::Void buttonClean_Click(System::Object^  sender, System::EventArgs^  e) {
+		regions->Clear();
+	}
+	 //警告区域相关的函数结束
+};
 }
 
