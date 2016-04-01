@@ -12,11 +12,12 @@
 
 CvCapture* capture;
 IplImage* frame;
+IplImage frameSend;//用于发送的帧
 int timeCount;
 double fps;
 int fpsCount;
 int now_frame_no = 0;
-int fame_continue = 0;
+int fame_continue = 6;
 std::queue<IplImage> imageQueue;
 
 struct MyRGB
@@ -46,13 +47,14 @@ namespace Capture1 {
 	public ref class Form1 : public System::Windows::Forms::Form
 	{
 	private:Client ^client = gcnew Client();
-			array<UtilSpace::Result ^> ^boxes;
+			List<UtilSpace::Result ^> ^boxes = gcnew List<UtilSpace::Result ^>();
 			String ^result = "";// "12-12-15-115-0.98-person,12-12-15-115-0.98-person,";
-			System::Windows::Forms::Timer^  timer2;
+
 			List<UtilSpace::Rectangle ^> ^regions;
-			HANDLE hMutex = CreateMutex(NULL, FALSE, NULL);//用于frame多线程读写时的互斥变量
+			HANDLE frameMutex = CreateMutex(NULL, FALSE, NULL);//用于frame多线程读写时的互斥变量
+			HANDLE boxMutex = CreateMutex(NULL, FALSE, NULL);
 			HANDLE timer1Handle = CreateMutex(NULL, FALSE, NULL);
-			HANDLE timer2Handle = CreateMutex(NULL, FALSE, NULL);
+			HANDLE socketHandle = CreateMutex(NULL, FALSE, NULL);
 			int frameWidth = 640;
 			int frameHeight = 480;
 	public:
@@ -105,7 +107,9 @@ namespace Capture1 {
 	private: System::Windows::Forms::OpenFileDialog^  openFileDialog1;
 	private: System::Windows::Forms::Timer^  timer1;
 	private: System::ComponentModel::IContainer^  components;
-	private: System::Windows::Forms::ComboBox^  comboBox2;
+	private: System::Windows::Forms::ComboBox^  detectInterval;
+
+
 	private: System::Windows::Forms::Label^  label2;
 	private: System::Windows::Forms::Label^  label1;
 	private: System::Windows::Forms::Timer^  timer3;
@@ -136,12 +140,11 @@ namespace Capture1 {
 			this->trackBar1 = (gcnew System::Windows::Forms::TrackBar());
 			this->pictureBox1 = (gcnew System::Windows::Forms::PictureBox());
 			this->groupBox3 = (gcnew System::Windows::Forms::GroupBox());
-			this->comboBox2 = (gcnew System::Windows::Forms::ComboBox());
+			this->detectInterval = (gcnew System::Windows::Forms::ComboBox());
 			this->button2 = (gcnew System::Windows::Forms::Button());
 			this->comboBox1 = (gcnew System::Windows::Forms::ComboBox());
 			this->openFileDialog1 = (gcnew System::Windows::Forms::OpenFileDialog());
 			this->timer1 = (gcnew System::Windows::Forms::Timer(this->components));
-			this->timer2 = (gcnew System::Windows::Forms::Timer(this->components));
 			this->timer3 = (gcnew System::Windows::Forms::Timer(this->components));
 			this->panel1->SuspendLayout();
 			this->groupBox1->SuspendLayout();
@@ -253,7 +256,7 @@ namespace Capture1 {
 			// 
 			// groupBox3
 			// 
-			this->groupBox3->Controls->Add(this->comboBox2);
+			this->groupBox3->Controls->Add(this->detectInterval);
 			this->groupBox3->Controls->Add(this->button2);
 			this->groupBox3->Controls->Add(this->comboBox1);
 			this->groupBox3->Font = (gcnew System::Drawing::Font(L"Calibri", 12, System::Drawing::FontStyle::Regular, System::Drawing::GraphicsUnit::Point,
@@ -265,19 +268,20 @@ namespace Capture1 {
 			this->groupBox3->TabStop = false;
 			this->groupBox3->Text = L"检测源";
 			// 
-			// comboBox2
+			// detectInterval
 			// 
-			this->comboBox2->DropDownStyle = System::Windows::Forms::ComboBoxStyle::DropDownList;
-			this->comboBox2->FormattingEnabled = true;
-			this->comboBox2->Items->AddRange(gcnew cli::array< System::Object^  >(31) {
-				L"1", L"2", L"3", L"4", L"5", L"6", L"7", L"8",
-					L"9", L"10", L"11", L"12", L"13", L"14", L"15", L"16", L"17", L"18", L"19", L"20", L"21", L"22", L"23", L"24", L"25", L"26",
-					L"27", L"28", L"29", L"30", L"检测帧率"
+			this->detectInterval->DropDownStyle = System::Windows::Forms::ComboBoxStyle::DropDownList;
+			this->detectInterval->FormattingEnabled = true;
+			this->detectInterval->Items->AddRange(gcnew cli::array< System::Object^  >(31) {
+				L"1", L"2", L"3", L"4", L"5", L"6", L"7",
+					L"8", L"9", L"10", L"11", L"12", L"13", L"14", L"15", L"16", L"17", L"18", L"19", L"20", L"21", L"22", L"23", L"24", L"25", L"26",
+					L"27", L"28", L"29", L"30", L"检测帧间隔"
 			});
-			this->comboBox2->Location = System::Drawing::Point(336, 23);
-			this->comboBox2->Name = L"comboBox2";
-			this->comboBox2->Size = System::Drawing::Size(93, 27);
-			this->comboBox2->TabIndex = 2;
+			this->detectInterval->Location = System::Drawing::Point(336, 23);
+			this->detectInterval->Name = L"detectInterval";
+			this->detectInterval->Size = System::Drawing::Size(93, 27);
+			this->detectInterval->TabIndex = 2;
+			this->detectInterval->Text = "6";
 			// 
 			// button2
 			// 
@@ -307,11 +311,6 @@ namespace Capture1 {
 			// 
 			this->timer1->Interval = 30;
 			this->timer1->Tick += gcnew System::EventHandler(this, &Form1::timer1_Tick);
-			// 
-			// timer2
-			// 
-			this->timer2->Interval = 10;
-			this->timer2->Tick += gcnew System::EventHandler(this, &Form1::timer2_Tick);
 			// 
 			// timer3
 			// 
@@ -347,7 +346,7 @@ namespace Capture1 {
 
 	private: System::Void button2_Click(System::Object^  sender, System::EventArgs^  e)
 	{
-		if (comboBox1->Text == "请选择检测种类" || comboBox2->Text == "检测帧率")
+		if (comboBox1->Text == "请选择检测种类" || detectInterval->Text == "检测帧率")
 		{
 			MessageBox::Show(this, "请选择检测种类或帧率", "错误!!!");
 		}
@@ -357,7 +356,7 @@ namespace Capture1 {
 			{
 				capture = cvCaptureFromCAM(0);
 				//fps = cvGetCaptureProperty(capture, CV_CAP_PROP_FPS); //视频帧率
-				fame_continue = int::Parse(comboBox2->Text);
+				fame_continue = int::Parse(detectInterval->Text);
 				trackBar1->Visible = false;
 				trackBar1->Minimum = 0;
 				trackBar1->Maximum = 0;
@@ -368,6 +367,10 @@ namespace Capture1 {
 				timer3->Start();
 				pictureBox1->Location = System::Drawing::Point(12, 38);
 				label1->Text = "视频帧率:";
+				frameWidth = 640;
+				frameHeight = 480;
+				buttonPaint->Enabled = true;
+				buttonClean->Enabled = true;
 			}
 			else if (comboBox1->Text == "选择视频进行检测")
 			{
@@ -376,13 +379,14 @@ namespace Capture1 {
 				openFileDialog1->RestoreDirectory = true;
 				openFileDialog1->FileName = "";
 				trackBar1->Visible = true;
+				trackBar1->Value = 0;
 				pictureBox1->Location = System::Drawing::Point(12, 28);
 				if (openFileDialog1->ShowDialog() == System::Windows::Forms::DialogResult::OK)
 				{
 					char *fileName = (char*)Marshal::StringToHGlobalAnsi(openFileDialog1->FileName).ToPointer();
 					capture = cvCaptureFromFile(fileName);
 					fps = cvGetCaptureProperty(capture, CV_CAP_PROP_FPS); //视频帧率
-					fame_continue = int::Parse(comboBox2->Text);
+					fame_continue = int::Parse(detectInterval->Text);
 					trackBar1->Minimum = 0;
 					timeCount = 0;
 					fpsCount = 0;
@@ -391,6 +395,8 @@ namespace Capture1 {
 					trackBar1->Maximum = (int)cvGetCaptureProperty(capture, CV_CAP_PROP_FRAME_COUNT);
 					button2->Text = "停止";
 					timer1->Start();
+					buttonPaint->Enabled = false;
+					buttonClean->Enabled = false;
 				}
 			}
 		}
@@ -399,7 +405,6 @@ namespace Capture1 {
 			cvReleaseCapture(&capture);
 			button2->Text = "开始";
 			timer1->Stop();
-			timer2->Stop();
 			timer3->Stop();
 			now_frame_no = 0;
 			startPoint = nullptr;
@@ -407,7 +412,18 @@ namespace Capture1 {
 			//pictureBox1->Enabled = false;
 			drawing = false;
 			newDraw = false;
+			boxes->Clear();
 			regions->Clear();
+			regions->Clear();
+			ReleaseMutex(frameMutex);
+			ReleaseMutex(boxMutex);
+			ReleaseMutex(timer1Handle);
+			ReleaseMutex(socketHandle);
+			int frameWidth = 640;
+			int frameHeight = 480;
+			while (!imageQueue.empty()) {
+				imageQueue.pop();
+			}
 		}
 	}
 
@@ -440,91 +456,100 @@ namespace Capture1 {
 		cvRectangle(img, cvPoint(x1, y1), cvPoint(x2, y2), CV_RGB((*it).second.R, (*it).second.G, (*it).second.B), 2);
 	}
 
-	//循环画帧
+			 //循环画帧
 	private: System::Void timer1_Tick(System::Object^  sender, System::EventArgs^  e)
 	{
 		try
 		{
+			//WaitForSingleObject(frameMutex, INFINITE);
 			frame = cvQueryFrame(capture);
 			if (frame != NULL)
 			{
 				imageQueue.push(*frame);
 				if (now_frame_no % fame_continue == 0)//发送帧，改变检测结果.
 				{
-					timer2->Start();
+					WaitForSingleObject(frameMutex, INFINITE);
+					frameSend = *frame;
+					ReleaseMutex(frameMutex);
+					Thread ^thread = gcnew Thread(gcnew ThreadStart(this, &Form1::SendFrame));
+					thread->Start();
 				}
+				//ReleaseMutex(frameMutex);
 				if (imageQueue.size() == 6) {
 					labelWarning->Text = "";//初始化警告框
-					*frame = imageQueue.front();
+					IplImage frameToShow = imageQueue.front();
 					imageQueue.pop();
 
-					WaitForSingleObject(hMutex, INFINITE);
+					WaitForSingleObject(boxMutex, INFINITE);
 					//画出检测结果
 					for each (UtilSpace::Result ^box in boxes)
 					{
 						char *cls = StringToCharArray(box->cls);
 						char *score = StringToCharArray(box->score);
 						//写字
-						cvText(frame, cls, box->x1, box->y1, score);
+						cvText(&frameToShow, cls, box->x1, box->y1, score);
 						//画框子
-						cvFrame(frame, box->x1, box->y1, box->x2, box->y2, cls);
+						cvFrame(&frameToShow, box->x1, box->y1, box->x2, box->y2, cls);
 					}
 					//画出警告区域
-					for each(UtilSpace::Rectangle ^region in regions) {
+					if (boxes->Count > 0)//当有boxes的时候才警告
+					{
+						for each(UtilSpace::Rectangle ^region in regions) {
 
-						bool call_110 = false;
-						//检测有没有是人的框子踏入了警告区域
-						for each (UtilSpace::Result ^box in boxes)
-						{
-							if (box->cls->Equals("person") && UtilSpace::Rectangle::areTwoRectsOverlapped(region, box))//如果有人的区域与警告区域重叠，跳出循环，警告
+							bool call_110 = false;
+							//检测有没有是人的框子踏入了警告区域
+							for each (UtilSpace::Result ^box in boxes)
 							{
-								call_110 = true;
-								break;
+								if (box->cls->Equals("person") && UtilSpace::Rectangle::areTwoRectsOverlapped(region, box))//如果有人的区域与警告区域重叠，跳出循环，警告
+								{
+									call_110 = true;
+									break;
+								}
+							}
+							if (!call_110)
+								cvRectangle(&frameToShow, cvPoint(region->x1, region->y1), cvPoint(region->x2, region->y2), CV_RGB(0, 0, 255), 2);
+							else
+							{
+								cvRectangle(&frameToShow, cvPoint(region->x1, region->y1), cvPoint(region->x2, region->y2), CV_RGB(255, 0, 0), CV_FILLED);
+								labelWarning->Text = "警告！！！";
+								//SystemSounds::Beep->Play();
+								System::Media::SoundPlayer ^sp = gcnew SoundPlayer();
+								sp->SoundLocation = "BLEEP1_S.WAV";
+								sp->PlaySync();
 							}
 						}
-						if(!call_110)
-							cvRectangle(frame, cvPoint(region->x1, region->y1), cvPoint(region->x2, region->y2), CV_RGB(0,0,255), 2);
-						else
-						{
-							cvRectangle(frame, cvPoint(region->x1, region->y1), cvPoint(region->x2, region->y2), CV_RGB(255, 0, 0), CV_FILLED);
-							labelWarning->Text = "警告！！！";
-							//SystemSounds::Beep->Play();
-							System::Media::SoundPlayer ^sp = gcnew SoundPlayer();
-							sp->SoundLocation = "BLEEP1_S.WAV";
-							sp->PlaySync();
-						}
-
 					}
-					ReleaseMutex(hMutex);
+					ReleaseMutex(boxMutex);
 
-					pictureBox1->Image = gcnew System::Drawing::Bitmap(frame->width, frame->height, frame->widthStep, System::Drawing::Imaging::PixelFormat::Format24bppRgb, (System::IntPtr) frame->imageData);
+					pictureBox1->Image = gcnew System::Drawing::Bitmap(frameToShow.width, frameToShow.height, frameToShow.widthStep, System::Drawing::Imaging::PixelFormat::Format24bppRgb, (System::IntPtr) frameToShow.imageData);
 					pictureBox1->Refresh();
-					//trackBar1->Value = (int)cvGetCaptureProperty(capture, CV_CAP_PROP_POS_FRAMES);
 
 					WaitForSingleObject(timer1Handle, INFINITE);
 					now_frame_no++;
 					ReleaseMutex(timer1Handle);
 				}
 			}
+			else
+			{
+				ReleaseMutex(frameMutex);
+			}
 		}
 		catch (Exception ^g) {
-			client->closeSocket();
 		}
 	}
 
-	//发送需要被检测的帧到服务器并返回结果，然后结束自己
-	private: System::Void timer2_Tick(System::Object^  sender, System::EventArgs^  e) {
+			 //发送需要被检测的帧到服务器并返回结果
+	private:void SendFrame() {
+		WaitForSingleObject(frameMutex, INFINITE);
 		client->connect();
-		WaitForSingleObject(hMutex, INFINITE);
-		client->sendImg(frame);
+		client->sendImg(&frameSend);
 		result = client->receive();
-		WaitForSingleObject(timer2Handle, INFINITE);
-		fpsCount++;
-		ReleaseMutex(timer2Handle);
+		client->closeSocket();
+		ReleaseMutex(frameMutex);
+		List<UtilSpace::Result ^> ^boxesTemp = gcnew List<UtilSpace::Result ^>();
 		if (!result->Equals(""))
 		{
 			array<String ^> ^boxString = result->Split(',');
-			boxes = gcnew array<UtilSpace::Result ^>(boxString->Length - 1);
 			for (int i = 0; i < boxString->Length - 1; i++)
 			{
 				UtilSpace::Result ^temp = gcnew UtilSpace::Result();
@@ -535,34 +560,24 @@ namespace Capture1 {
 				temp->y2 = int::Parse(box[3]);
 				temp->score = box[4];
 				temp->cls = box[5];
-				boxes[i] = temp;
+				boxesTemp->Add(temp);
 			}
 		}
-		else
-		{
-			boxes = gcnew array<UtilSpace::Result ^>(1);
-			UtilSpace::Result ^temp = gcnew UtilSpace::Result();
-			temp->x1 = 0;
-			temp->y1 = 0;
-			temp->x2 = 0;
-			temp->y2 = 0;
-			temp->cls = "";
-			temp->score = "";
-			boxes[0] = temp;
-		}
-		client->closeSocket();
-		ReleaseMutex(hMutex);
-		timer2->Stop();
+		WaitForSingleObject(boxMutex, INFINITE);
+		boxes = boxesTemp;
+		fpsCount++;
+		ReleaseMutex(boxMutex);
 	}
 
-	//显示数据用的线程
+
+			//显示数据用的线程
 	private: System::Void timer3_Tick(System::Object^  sender, System::EventArgs^  e) {
 		timeCount++;
 		label1->Text = "视频帧率: " + (double)((int)(((double)now_frame_no / timeCount) * 100)) / 100 + "fps";
 		label2->Text = "平均接收帧率: " + (double)((int)(((double)fpsCount / timeCount) * 100)) / 100 + "fps";
 	}
 
-	//警告区域相关的函数
+			 //警告区域相关的函数
 	private:Point ^startPoint = nullptr, ^endPoint = nullptr;//鼠标下落点和离开店
 			bool drawing = false;
 			bool newDraw = false;
@@ -575,7 +590,7 @@ namespace Capture1 {
 		}
 	}
 	private: System::Void pictureBox1_MouseUp(System::Object^  sender, System::Windows::Forms::MouseEventArgs^  e) {
-		if(newDraw){
+		if (newDraw) {
 			drawing = false;
 			endPoint = gcnew Point(e->X, e->Y);
 			newDraw = false;
@@ -619,7 +634,7 @@ namespace Capture1 {
 	private: System::Void buttonClean_Click(System::Object^  sender, System::EventArgs^  e) {
 		regions->Clear();
 	}
-	 //警告区域相关的函数结束
-};
+			 //警告区域相关的函数结束
+	};
 }
 
