@@ -9,17 +9,17 @@
 #include <queue>
 #include "utils.h"
 #include "utilCLass.h"
-
+#include "FeatureTracker.cpp"
 CvCapture* capture;
-IplImage* frame;
-IplImage frameSend;//用于发送的帧
+IplImage *frame;
+IplImage *frameSend;//用于发送的帧
 int timeCount;
 double fps;
 int fpsCount;
 int now_frame_no = 0;
 int fame_continue = 6;
 std::queue<IplImage> imageQueue;
-
+FeatureTracker tracker;// = new FeatureTracker();
 struct MyRGB
 {
 	int R;
@@ -48,7 +48,8 @@ namespace Capture1 {
 	{
 	private:Client ^client = gcnew Client();
 			List<UtilSpace::Result ^> ^boxes = gcnew List<UtilSpace::Result ^>();
-			String ^result = "";// "12-12-15-115-0.98-person,12-12-15-115-0.98-person,";
+			List<Thread ^> ^threadList = gcnew List<Thread ^>();//将所有线程放入线程池中
+			System::String ^result = "";// "12-12-15-115-0.98-person,12-12-15-115-0.98-person,";
 
 			List<UtilSpace::Rectangle ^> ^regions;
 			HANDLE frameMutex = CreateMutex(NULL, FALSE, NULL);//用于frame多线程读写时的互斥变量
@@ -56,7 +57,9 @@ namespace Capture1 {
 			HANDLE timer1Handle = CreateMutex(NULL, FALSE, NULL);
 			HANDLE socketHandle = CreateMutex(NULL, FALSE, NULL);
 			int frameWidth = 640;
-			int frameHeight = 480;
+	private: System::Windows::Forms::Timer^  beepTime;
+
+			 int frameHeight = 480;
 	public:
 		Form1(void)
 		{
@@ -146,6 +149,7 @@ namespace Capture1 {
 			this->openFileDialog1 = (gcnew System::Windows::Forms::OpenFileDialog());
 			this->timer1 = (gcnew System::Windows::Forms::Timer(this->components));
 			this->timer3 = (gcnew System::Windows::Forms::Timer(this->components));
+			this->beepTime = (gcnew System::Windows::Forms::Timer(this->components));
 			this->panel1->SuspendLayout();
 			this->groupBox1->SuspendLayout();
 			(cli::safe_cast<System::ComponentModel::ISupportInitialize^>(this->trackBar1))->BeginInit();
@@ -180,6 +184,7 @@ namespace Capture1 {
 			// 
 			// buttonClean
 			// 
+			this->buttonClean->Enabled = false;
 			this->buttonClean->Location = System::Drawing::Point(126, 633);
 			this->buttonClean->Name = L"buttonClean";
 			this->buttonClean->Size = System::Drawing::Size(102, 33);
@@ -190,6 +195,7 @@ namespace Capture1 {
 			// 
 			// buttonPaint
 			// 
+			this->buttonPaint->Enabled = false;
 			this->buttonPaint->Location = System::Drawing::Point(18, 633);
 			this->buttonPaint->Name = L"buttonPaint";
 			this->buttonPaint->Size = System::Drawing::Size(102, 33);
@@ -203,7 +209,7 @@ namespace Capture1 {
 			this->label2->AutoSize = true;
 			this->label2->Location = System::Drawing::Point(280, 688);
 			this->label2->Name = L"label2";
-			this->label2->Size = System::Drawing::Size(104, 23);
+			this->label2->Size = System::Drawing::Size(135, 23);
 			this->label2->TabIndex = 12;
 			this->label2->Text = L"平均接收帧率:";
 			// 
@@ -281,7 +287,7 @@ namespace Capture1 {
 			this->detectInterval->Name = L"detectInterval";
 			this->detectInterval->Size = System::Drawing::Size(93, 27);
 			this->detectInterval->TabIndex = 2;
-			this->detectInterval->Text = "6";
+			this->detectInterval->Text = "4";
 			// 
 			// button2
 			// 
@@ -316,6 +322,11 @@ namespace Capture1 {
 			// 
 			this->timer3->Interval = 1000;
 			this->timer3->Tick += gcnew System::EventHandler(this, &Form1::timer3_Tick);
+			// 
+			// beepTime
+			// 
+			this->beepTime->Interval = 1000;
+			this->beepTime->Tick += gcnew System::EventHandler(this, &Form1::BeepTime_Tick);
 			// 
 			// Form1
 			// 
@@ -397,15 +408,21 @@ namespace Capture1 {
 					timer1->Start();
 					buttonPaint->Enabled = false;
 					buttonClean->Enabled = false;
+					//buttonPaint->Enabled = true;
+					//buttonClean->Enabled = true;
 				}
 			}
 		}
 		else if (button2->Text == "停止")
 		{
-			cvReleaseCapture(&capture);
-			button2->Text = "开始";
 			timer1->Stop();
 			timer3->Stop();
+			for each(Thread ^t in threadList)
+			{
+				t->Join();
+			}
+			cvReleaseCapture(&capture);
+			button2->Text = "开始";
 			now_frame_no = 0;
 			startPoint = nullptr;
 			endPoint = nullptr;
@@ -414,16 +431,15 @@ namespace Capture1 {
 			newDraw = false;
 			boxes->Clear();
 			regions->Clear();
-			regions->Clear();
 			ReleaseMutex(frameMutex);
 			ReleaseMutex(boxMutex);
 			ReleaseMutex(timer1Handle);
 			ReleaseMutex(socketHandle);
 			int frameWidth = 640;
 			int frameHeight = 480;
-			while (!imageQueue.empty()) {
+			/*while (!imageQueue.empty()) {
 				imageQueue.pop();
-			}
+			}*/
 		}
 	}
 
@@ -455,105 +471,112 @@ namespace Capture1 {
 		it = colorMap.find(cls);
 		cvRectangle(img, cvPoint(x1, y1), cvPoint(x2, y2), CV_RGB((*it).second.R, (*it).second.G, (*it).second.B), 2);
 	}
-
-			 //循环画帧
+	private:Thread ^thread;
+			//循环画帧
 	private: System::Void timer1_Tick(System::Object^  sender, System::EventArgs^  e)
 	{
 		try
 		{
-			//WaitForSingleObject(frameMutex, INFINITE);
 			frame = cvQueryFrame(capture);
 			if (frame != NULL)
 			{
-				imageQueue.push(*frame);
+				/*cv::Mat output;
+				cv::Mat *temp = new Mat(frame);
+				tracker.process(*temp, output);
+				pictureBox1->Image = client->ConvertMatToBitmap(output);
+				pictureBox1->Refresh();*/
+				/*IplImage *temp = cvCreateImage(cvGetSize(frame), frame->depth, frame->nChannels);
+				cvCopy(frame, temp);*/
+				//imageQueue.push(*frame);
 				if (now_frame_no % fame_continue == 0)//发送帧，改变检测结果.
 				{
 					WaitForSingleObject(frameMutex, INFINITE);
-					frameSend = *frame;
+					cvReleaseImage(&frameSend);//先释放内存，不然随着程序的运行内存会不断增加
+					frameSend = cvCreateImage(cvGetSize(frame), frame->depth, frame->nChannels);
+					cvCopy(frame, frameSend);
+					//frame = NULL;
 					ReleaseMutex(frameMutex);
 					Thread ^thread = gcnew Thread(gcnew ThreadStart(this, &Form1::SendFrame));
+					thread->IsBackground = true;
+					if (threadList->Count > 0)
+						threadList->RemoveAt(0);
+					threadList->Add(thread);
 					thread->Start();
 				}
-				//ReleaseMutex(frameMutex);
-				if (imageQueue.size() == 6) {
-					labelWarning->Text = "";//初始化警告框
-					IplImage frameToShow = imageQueue.front();
-					imageQueue.pop();
+				labelWarning->Text = "";//初始化警告框
+				IplImage frameToShow = *frame;
 
-					WaitForSingleObject(boxMutex, INFINITE);
-					//画出检测结果
+				WaitForSingleObject(boxMutex, INFINITE);
+				//画出检测结果
+				for each (UtilSpace::Result ^box in boxes)
+				{
+					char *cls = StringToCharArray(box->cls);
+					char *score = StringToCharArray(box->score);
+					//写字
+					cvText(&frameToShow, cls, box->x1, box->y1, score);
+					//画框子
+					cvFrame(&frameToShow, box->x1, box->y1, box->x2, box->y2, cls);
+				}
+				//画出警告区域
+				for each(UtilSpace::Rectangle ^region in regions) {
+
+					bool call_110 = false;
+					//检测有没有是人的框子踏入了警告区域
 					for each (UtilSpace::Result ^box in boxes)
 					{
-						char *cls = StringToCharArray(box->cls);
-						char *score = StringToCharArray(box->score);
-						//写字
-						cvText(&frameToShow, cls, box->x1, box->y1, score);
-						//画框子
-						cvFrame(&frameToShow, box->x1, box->y1, box->x2, box->y2, cls);
-					}
-					//画出警告区域
-					if (boxes->Count > 0)//当有boxes的时候才警告
-					{
-						for each(UtilSpace::Rectangle ^region in regions) {
-
-							bool call_110 = false;
-							//检测有没有是人的框子踏入了警告区域
-							for each (UtilSpace::Result ^box in boxes)
-							{
-								if (box->cls->Equals("person") && UtilSpace::Rectangle::areTwoRectsOverlapped(region, box))//如果有人的区域与警告区域重叠，跳出循环，警告
-								{
-									call_110 = true;
-									break;
-								}
-							}
-							if (!call_110)
-								cvRectangle(&frameToShow, cvPoint(region->x1, region->y1), cvPoint(region->x2, region->y2), CV_RGB(0, 0, 255), 2);
-							else
-							{
-								cvRectangle(&frameToShow, cvPoint(region->x1, region->y1), cvPoint(region->x2, region->y2), CV_RGB(255, 0, 0), CV_FILLED);
-								labelWarning->Text = "警告！！！";
-								//SystemSounds::Beep->Play();
-								System::Media::SoundPlayer ^sp = gcnew SoundPlayer();
-								sp->SoundLocation = "BLEEP1_S.WAV";
-								sp->PlaySync();
-							}
+						if (box->cls->Equals("person") && UtilSpace::Rectangle::areTwoRectsOverlapped(region, box))//如果有人的区域与警告区域重叠，跳出循环，警告
+						{
+							call_110 = true;
+							break;
 						}
 					}
-					ReleaseMutex(boxMutex);
-
-					pictureBox1->Image = gcnew System::Drawing::Bitmap(frameToShow.width, frameToShow.height, frameToShow.widthStep, System::Drawing::Imaging::PixelFormat::Format24bppRgb, (System::IntPtr) frameToShow.imageData);
-					pictureBox1->Refresh();
-
-					WaitForSingleObject(timer1Handle, INFINITE);
-					now_frame_no++;
-					ReleaseMutex(timer1Handle);
+					if (!call_110)
+						cvRectangle(&frameToShow, cvPoint(region->x1, region->y1), cvPoint(region->x2, region->y2), CV_RGB(0, 0, 255), 2);
+					else
+					{
+						cvRectangle(&frameToShow, cvPoint(region->x1, region->y1), cvPoint(region->x2, region->y2), CV_RGB(255, 0, 0), CV_FILLED);
+						labelWarning->Text = "警告！！！";
+						beepTime->Start();
+					}
 				}
+				ReleaseMutex(boxMutex);
+				pictureBox1->Image = gcnew System::Drawing::Bitmap(frameToShow.width, frameToShow.height, frameToShow.widthStep, System::Drawing::Imaging::PixelFormat::Format24bppRgb, (System::IntPtr) frameToShow.imageData);
+				WaitForSingleObject(timer1Handle, INFINITE);
+				now_frame_no++;
+				ReleaseMutex(timer1Handle);
 			}
 			else
 			{
 				ReleaseMutex(frameMutex);
 			}
 		}
-		catch (Exception ^g) {
+		catch (System::Exception ^g) {
 		}
 	}
-
-			 //发送需要被检测的帧到服务器并返回结果
+			 int save = 1;//测试所用，注意删除
+	//发送需要被检测的帧到服务器并返回结果
 	private:void SendFrame() {
 		WaitForSingleObject(frameMutex, INFINITE);
 		client->connect();
-		client->sendImg(&frameSend);
+		//测试所用
+		//Bitmap ^temp = gcnew System::Drawing::Bitmap(frameSend->width, frameSend->height, frameSend->widthStep, System::Drawing::Imaging::PixelFormat::Format24bppRgb, (System::IntPtr) frameSend->imageData);
+		//temp->Save(save + ".jpg", System::Drawing::Imaging::ImageFormat::Jpeg);
+		//save++;
+		//if (save == 30)
+		//	save = 1;
+		//测试end
+		client->sendImg(frameSend);
 		result = client->receive();
 		client->closeSocket();
 		ReleaseMutex(frameMutex);
 		List<UtilSpace::Result ^> ^boxesTemp = gcnew List<UtilSpace::Result ^>();
 		if (!result->Equals(""))
 		{
-			array<String ^> ^boxString = result->Split(',');
+			array<System::String ^> ^boxString = result->Split(',');
 			for (int i = 0; i < boxString->Length - 1; i++)
 			{
 				UtilSpace::Result ^temp = gcnew UtilSpace::Result();
-				array<String ^> ^box = boxString[i]->Split('-');
+				array<System::String ^> ^box = boxString[i]->Split('-');
 				temp->x1 = int::Parse(box[0]);
 				temp->y1 = int::Parse(box[1]);
 				temp->x2 = int::Parse(box[2]);
@@ -574,17 +597,17 @@ namespace Capture1 {
 	private: System::Void timer3_Tick(System::Object^  sender, System::EventArgs^  e) {
 		timeCount++;
 		label1->Text = "视频帧率: " + (double)((int)(((double)now_frame_no / timeCount) * 100)) / 100 + "fps";
-		label2->Text = "平均接收帧率: " + (double)((int)(((double)fpsCount / timeCount) * 100)) / 100 + "fps";
+		label2->Text = "平均接收帧率: " +(double)((int)(((double)fpsCount / timeCount) * 100)) / 100 + "fps";
 	}
 
 			 //警告区域相关的函数
-	private:Point ^startPoint = nullptr, ^endPoint = nullptr;//鼠标下落点和离开店
+	private:System::Drawing::Point ^startPoint = nullptr, ^endPoint = nullptr;//鼠标下落点和离开店
 			bool drawing = false;
 			bool newDraw = false;
 
 	private: System::Void pictureBox1_MouseDown(System::Object^  sender, System::Windows::Forms::MouseEventArgs^  e) {
 		if (newDraw) {
-			startPoint = gcnew Point(e->X, e->Y);
+			startPoint = gcnew System::Drawing::Point(e->X, e->Y);
 			endPoint = nullptr;
 			drawing = true;
 		}
@@ -592,7 +615,7 @@ namespace Capture1 {
 	private: System::Void pictureBox1_MouseUp(System::Object^  sender, System::Windows::Forms::MouseEventArgs^  e) {
 		if (newDraw) {
 			drawing = false;
-			endPoint = gcnew Point(e->X, e->Y);
+			endPoint = gcnew System::Drawing::Point(e->X, e->Y);
 			newDraw = false;
 			//计算当前picturebox上的点的位置
 			int topleftX = startPoint->X < endPoint->X ? startPoint->X : endPoint->X;
@@ -613,18 +636,13 @@ namespace Capture1 {
 		if (e->Button == System::Windows::Forms::MouseButtons::Left) {
 			if (drawing)
 			{
-				//drawing = true;  
 				g->SmoothingMode = System::Drawing::Drawing2D::SmoothingMode::AntiAlias;//消除锯齿  
-				//g->DrawLine(gcnew Pen(Color::Blue, 2), startPoint->X, startPoint->Y, e->X, e->Y);
 				pictureBox1->Refresh();
-				//g->Clear(pictureBox1->BackColor);
 				//找出矩形的最左上角
 				int leftTopX = startPoint->X < e->X ? startPoint->X : e->X;
 				int leftTopY = startPoint->Y < e->Y ? startPoint->Y : e->Y;
 
 				g->DrawRectangle(gcnew Pen(Color::Blue, 2), leftTopX, leftTopY, Math::Abs(e->X - startPoint->X), Math::Abs(e->Y - startPoint->Y));
-				//startPoint->X = e->X;
-				//startPoint->Y = e->Y;
 			}
 		}
 	}
@@ -635,6 +653,13 @@ namespace Capture1 {
 		regions->Clear();
 	}
 			 //警告区域相关的函数结束
+	private: System::Void BeepTime_Tick(System::Object^  sender, System::EventArgs^  e) {
+
+		System::Media::SoundPlayer ^sp = gcnew SoundPlayer();
+		sp->SoundLocation = "BLEEP1_S.WAV";
+		sp->Play();
+		beepTime->Stop();
+	}
 	};
 }
 
